@@ -1,4 +1,4 @@
-package com.example.auralearn
+package findit.edversity.auralearn
 
 import org.junit.Test
 

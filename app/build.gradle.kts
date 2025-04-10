@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.auralearn"
+    namespace = "findit.edversity.auralearn"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.auralearn"
+        applicationId = "findit.edversity.auralearn"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
