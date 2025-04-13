@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.Auralearn" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Auralearn" parent="android:Theme.Material.NoActionBar">
+        <!-- Disable default splash screen -->
+        <item name="android:windowIsTranslucent">true</item>
+    </style>
 </resources>
