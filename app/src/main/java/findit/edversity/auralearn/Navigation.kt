@@ -22,7 +22,9 @@ fun AuralearnApp() {
             HomeScreen(navController = navController)
         }
         composable("materialList") {
-            MaterialListScreen(navController = navController)
+            MaterialListScreen(
+                onBackPressed = { navController.popBackStack() },
+            )
         }
     }
 }
