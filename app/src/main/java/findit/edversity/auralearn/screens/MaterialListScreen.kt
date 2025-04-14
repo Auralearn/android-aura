@@ -1,8 +1,5 @@
 package findit.edversity.auralearn.screens
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +23,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,49 +48,55 @@ import findit.edversity.auralearn.ui.theme.CyanTertiary
 import findit.edversity.auralearn.ui.theme.PurplePrimary
 import findit.edversity.auralearn.ui.theme.PurpleSecondary
 import findit.edversity.auralearn.ui.theme.White
-
-class MaterialListActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            AuralearnTheme {
-                MaterialListScreen(
-                    onBackPressed = { finish() }
-                )
-            }
-        }
-    }
-}
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
 
 @Composable
-fun MaterialListScreen(onBackPressed: () -> Unit) {
-    val allMaterials = remember {
-        listOf(
-            "Matematika Kelas 1 SD", "Matematika Kelas 2 SD", "Matematika Kelas 3 SD",
-            "Matematika Kelas 4 SD", "Matematika Kelas 5 SD", "Matematika Kelas 6 SD",
-            "IPA Kelas 1 SMP", "IPA Kelas 2 SMP", "IPA Kelas 3 SMP",
-            "Bahasa Indonesia Kelas 1 SMA", "Bahasa Indonesia Kelas 2 SMA", "Bahasa Indonesia Kelas 3 SMA"
-        )
+fun MaterialListScreen(
+    onBackPressed: () -> Unit,
+    onMaterialClick: (String) -> Unit
+) {
+    var materials by remember { mutableStateOf<List<Material>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    // Fetch materials when the screen is first displayed
+    LaunchedEffect(Unit) {
+        try {
+            val fetchedMaterials = withContext(Dispatchers.IO) {
+                fetchMaterials()
+            }
+            materials = fetchedMaterials
+            isLoading = false
+        } catch (e: Exception) {
+            error = e.message
+            isLoading = false
+        }
     }
 
     var searchQuery by remember { mutableStateOf(TextFieldValue("")) }
     var filterLevel by remember { mutableStateOf("ALL") }
 
-    val filteredMaterials = allMaterials
+    val filteredMaterials = materials
         .filter {
-            val matchesSearch = it.contains(searchQuery.text, ignoreCase = true)
+            val matchesSearch = it.title.contains(searchQuery.text, ignoreCase = true)
             val matchesFilter = when (filterLevel) {
-                "SD" -> it.contains("SD")
-                "SMP" -> it.contains("SMP")
-                "SMA" -> it.contains("SMA")
+                "SD" -> it.title.contains("SD")
+                "SMP" -> it.title.contains("SMP")
+                "SMA" -> it.title.contains("SMA")
                 else -> true
             }
             matchesSearch && matchesFilter
         }
 
-    val sdMaterials = filteredMaterials.filter { it.contains("SD") }
-    val smpMaterials = filteredMaterials.filter { it.contains("SMP") }
-    val smaMaterials = filteredMaterials.filter { it.contains("SMA") }
+    val sdMaterials = filteredMaterials.filter { it.title.contains("SD") }
+    val smpMaterials = filteredMaterials.filter { it.title.contains("SMP") }
+    val smaMaterials = filteredMaterials.filter { it.title.contains("SMA") }
 
     Box(
         modifier = Modifier
@@ -142,7 +146,31 @@ fun MaterialListScreen(onBackPressed: () -> Unit) {
         )
 
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
-            TopBar(onBackPressed)
+            // Top Bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                IconButton(onClick = onBackPressed) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_back),
+                        contentDescription = "Back",
+                        tint = Color.White,
+                        modifier = Modifier.fillMaxSize(0.75f)
+                    )
+                }
+
+                Image(
+                    painter = painterResource(id = R.drawable.app_logo_home),
+                    contentDescription = "App Logo",
+                    modifier = Modifier.size(200.dp)
+                )
+
+                Spacer(modifier = Modifier.fillMaxWidth(0.33f))
+            }
 
             Text(
                 text = "Daftar Materi",
@@ -153,10 +181,26 @@ fun MaterialListScreen(onBackPressed: () -> Unit) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            SearchBarAndFilter(
-                searchQuery = searchQuery,
-                onSearchChange = { searchQuery = it },
-                onFilterChange = {
+            // Search Bar and Filter
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                BasicTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = White),
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(White.copy(alpha = 0.35f), shape = MaterialTheme.shapes.medium)
+                        .padding(12.dp)
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                IconButton(onClick = {
                     filterLevel = when (filterLevel) {
                         "ALL" -> "SD"
                         "SD" -> "SMP"
@@ -164,37 +208,94 @@ fun MaterialListScreen(onBackPressed: () -> Unit) {
                         "SMA" -> "ALL"
                         else -> "ALL"
                     }
-                },
-                currentFilter = filterLevel
+                }) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_filter),
+                        contentDescription = "Filter",
+                        tint = Color.White,
+                        modifier = Modifier.fillMaxSize(0.75f)
+                    )
+                }
+            }
+
+            Text(
+                text = if (filterLevel == "ALL") "Filter: Semua" else "Filter: $filterLevel",
+                color = Color.White,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+                textAlign = TextAlign.End,
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            LazyColumn(modifier = Modifier.padding(horizontal = 16.dp)) {
-                if (sdMaterials.isNotEmpty()) {
-                    item {
-                        SectionHeader("Sekolah Dasar")
+            when {
+                isLoading -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Loading materials...", color = White)
                     }
-                    items(sdMaterials) { MaterialItem(it) }
                 }
-
-                if (smpMaterials.isNotEmpty()) {
-                    item {
-                        SectionHeader("Sekolah Menengah Pertama")
+                error != null -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Error: $error", color = White)
                     }
-                    items(smpMaterials) { MaterialItem(it) }
                 }
-
-                if (smaMaterials.isNotEmpty()) {
-                    item {
-                        SectionHeader("Sekolah Menengah Atas")
+                filteredMaterials.isEmpty() -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No materials found", color = White)
                     }
-                    items(smaMaterials) { MaterialItem(it) }
                 }
+                else -> {
+                    LazyColumn(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        if (sdMaterials.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = "Sekolah Dasar",
+                                    style = MaterialTheme.typography.titleMedium.copy(color = Color.White),
+                                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                                )
+                            }
+                            items(sdMaterials) { material ->
+                                MaterialItem(material.title) {
+                                    onMaterialClick(material.id)
+                                }
+                            }
+                        }
 
-                // Add buffer space at the end of the list
-                item {
-                    Spacer(modifier = Modifier.height(32.dp))
+                        if (smpMaterials.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = "Sekolah Menengah Pertama",
+                                    style = MaterialTheme.typography.titleMedium.copy(color = Color.White),
+                                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                                )
+                            }
+                            items(smpMaterials) { material ->
+                                MaterialItem(material.title) {
+                                    onMaterialClick(material.id)
+                                }
+                            }
+                        }
+
+                        if (smaMaterials.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = "Sekolah Menengah Atas",
+                                    style = MaterialTheme.typography.titleMedium.copy(color = Color.White),
+                                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                                )
+                            }
+                            items(smaMaterials) { material ->
+                                MaterialItem(material.title) {
+                                    onMaterialClick(material.id)
+                                }
+                            }
+                        }
+
+                        // Add buffer space at the end of the list
+                        item {
+                            Spacer(modifier = Modifier.height(32.dp))
+                        }
+                    }
                 }
             }
         }
@@ -202,94 +303,14 @@ fun MaterialListScreen(onBackPressed: () -> Unit) {
 }
 
 @Composable
-fun TopBar(onBackPressed: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        IconButton(onClick = onBackPressed) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_back),
-                contentDescription = "Back",
-                tint = Color.White,
-                modifier = Modifier.fillMaxSize(0.75f)
-            )
-        }
-
-        Image(
-            painter = painterResource(id = R.drawable.app_logo_home),
-            contentDescription = "App Logo",
-            modifier = Modifier.size(200.dp)
-        )
-
-        Spacer(modifier = Modifier.fillMaxWidth(0.33f))
-    }
-}
-
-@Composable
-fun SearchBarAndFilter(
-    searchQuery: TextFieldValue,
-    onSearchChange: (TextFieldValue) -> Unit,
-    onFilterChange: () -> Unit,
-    currentFilter: String
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        BasicTextField(
-            value = searchQuery,
-            onValueChange = onSearchChange,
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = White),
-            modifier = Modifier
-                .weight(1f)
-                .background(White.copy(alpha = 0.35f), shape = MaterialTheme.shapes.medium)
-                .padding(12.dp)
-        )
-
-        Spacer(modifier = Modifier.width(8.dp))
-
-        IconButton(onClick = onFilterChange) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_filter),
-                contentDescription = "Filter",
-                tint = Color.White,
-                modifier = Modifier.fillMaxSize(0.75f)
-            )
-        }
-    }
-
-    Text(
-        text = if (currentFilter == "ALL") "Filter: Semua" else "Filter: $currentFilter",
-        color = Color.White,
-        style = MaterialTheme.typography.bodySmall,
-        modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
-        textAlign = TextAlign.End,
-    )
-}
-
-@Composable
-fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleMedium.copy(color = Color.White),
-        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-    )
-}
-
-@Composable
-fun MaterialItem(material: String) {
+fun MaterialItem(material: String, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
         colors = CardDefaults.cardColors(containerColor = White.copy(alpha = 0.35f)),
-        elevation = CardDefaults.elevatedCardElevation(4.dp)
+        elevation = CardDefaults.elevatedCardElevation(4.dp),
+        onClick = onClick
     ) {
         Text(
             text = material,
@@ -299,10 +320,59 @@ fun MaterialItem(material: String) {
     }
 }
 
+// Data classes for API responses
+data class Material(
+    val id: String,
+    val title: String
+)
+
+// API functions
+fun fetchMaterials(): List<Material> {
+    val url = URL("http://10.0.2.2:8000/api/materials/")
+    val connection = url.openConnection() as HttpURLConnection
+    connection.requestMethod = "GET"
+    connection.connectTimeout = 5000
+    connection.readTimeout = 5000
+
+    return try {
+        val responseCode = connection.responseCode
+        if (responseCode == HttpURLConnection.HTTP_OK) {
+            val inputStream = connection.inputStream
+            val bufferedReader = BufferedReader(InputStreamReader(inputStream))
+            val response = bufferedReader.use { it.readText() }
+            val jsonObject = JSONObject(response)
+
+            if (jsonObject.getBoolean("success")) {
+                val dataArray = jsonObject.getJSONArray("data")
+                val materials = mutableListOf<Material>()
+                for (i in 0 until dataArray.length()) {
+                    val item = dataArray.getJSONObject(i)
+                    materials.add(
+                        Material(
+                            id = item.getString("id"),
+                            title = item.getString("title")
+                        )
+                    )
+                }
+                materials
+            } else {
+                throw Exception(jsonObject.getString("error"))
+            }
+        } else {
+            throw Exception("HTTP error: $responseCode")
+        }
+    } finally {
+        connection.disconnect()
+    }
+}
+
 @Preview(showBackground = true)
 @Composable
 fun MaterialListScreenPreview() {
     AuralearnTheme {
-        MaterialListScreen(onBackPressed = {})
+        MaterialListScreen(
+            onBackPressed = {},
+            onMaterialClick = {}
+        )
     }
 }

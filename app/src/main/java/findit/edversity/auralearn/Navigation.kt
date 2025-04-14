@@ -7,6 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import findit.edversity.auralearn.screens.HomeScreen
+import findit.edversity.auralearn.screens.MaterialDetailScreen
 import findit.edversity.auralearn.screens.MaterialListScreen
 
 @Composable
@@ -24,6 +25,16 @@ fun AuralearnApp() {
         composable("materialList") {
             MaterialListScreen(
                 onBackPressed = { navController.popBackStack() },
+                onMaterialClick = { materialId ->
+                    navController.navigate("materialDetail/$materialId")
+                }
+            )
+        }
+        composable("materialDetail/{materialId}") { backStackEntry ->
+            val materialId = backStackEntry.arguments?.getString("materialId") ?: ""
+            MaterialDetailScreen(
+                materialId = materialId,
+                onBackPressed = { navController.popBackStack() }
             )
         }
     }
