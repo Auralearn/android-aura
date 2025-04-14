@@ -26,11 +26,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -67,6 +70,15 @@ import findit.edversity.auralearn.ui.theme.CyanTertiary
 import findit.edversity.auralearn.ui.theme.PurplePrimary
 import findit.edversity.auralearn.ui.theme.PurpleSecondary
 import findit.edversity.auralearn.ui.theme.White
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.sin
@@ -100,6 +112,63 @@ fun HomeScreen(navController: NavController) {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "id-ID")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+        }
+    }
+
+    fun fetchResponse(userText: String, tts: TextToSpeech?, transcribedText: (String) -> Unit) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val url = URL("http://10.0.2.2:8000/api/interact")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.connectTimeout = 5000
+            connection.readTimeout = 5000
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.doOutput = true
+
+            try {
+                // Create request body
+                val requestBody = JSONObject().apply {
+                    put("user_text", userText)
+                    put("current_context", JSONObject())
+                }.toString()
+
+                // Write request body
+                val outputStream = connection.outputStream
+                outputStream.write(requestBody.toByteArray())
+                outputStream.flush()
+                outputStream.close()
+
+                val responseCode = connection.responseCode
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    val inputStream = connection.inputStream
+                    val bufferedReader = BufferedReader(InputStreamReader(inputStream))
+                    val response = bufferedReader.use { it.readText() }
+                    val jsonObject = JSONObject(response)
+                    val data = jsonObject.getJSONObject("data")
+                    var responseText = data.getString("text_audio")
+
+                    // Clean the response text
+                    responseText = responseText
+                        .replace("\\*\\*".toRegex(), "") // Remove **bold** markers
+                        .replace("\\*".toRegex(), "") // Remove *italic* markers
+
+                    // Update UI and speak response
+                    withContext(Dispatchers.Main) {
+                        transcribedText(responseText)
+                        tts?.speak(responseText, TextToSpeech.QUEUE_FLUSH, null, "api_response")
+                    }
+                } else {
+                    throw Exception("HTTP error: $responseCode")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    val errorMessage = "Maaf, terjadi kesalahan: ${e.message}"
+                    transcribedText(errorMessage)
+                    tts?.speak(errorMessage, TextToSpeech.QUEUE_FLUSH, null, "api_error")
+                }
+            } finally {
+                connection.disconnect()
+            }
         }
     }
 
@@ -140,8 +209,14 @@ fun HomeScreen(navController: NavController) {
                 })
             }
             else -> {
-                tts?.speak("Maaf, saya tidak mengerti.\nApa yang bisa saya bantu?", TextToSpeech.QUEUE_FLUSH, null, "not_understood")
-                transcribedText = "Maaf, saya tidak mengerti.\nApa yang bisa saya bantu?"
+                transcribedText = "Memproses permintaan..."
+                fetchResponse(
+                    userText = normalized,
+                    tts = tts,
+                    transcribedText = { text ->
+                        transcribedText = text
+                    }
+                )
             }
         }
     }
@@ -256,7 +331,13 @@ fun HomeScreen(navController: NavController) {
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {
-                        if (hasMicPermission && !isTtsSpeaking) {
+                        // Mute the TTS if it's speaking
+                        if (isTtsSpeaking) {
+                            tts?.stop()
+                            isTtsSpeaking = false
+                        }
+                        // Start listening for voice commands
+                        if (hasMicPermission) {
                             speechRecognizer.setRecognitionListener(createRecognitionListener())
                             speechRecognizer.startListening(speechIntent)
                         }
@@ -326,12 +407,21 @@ fun HomeScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            Text(
-                text = transcribedText,
-                style = MaterialTheme.typography.bodyLarge,
-                color = Color.White,
-                textAlign = TextAlign.Center
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(175.dp)
+            ) {
+                Text(
+                    text = transcribedText,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color.White,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                )
+            }
 
             Spacer(modifier = Modifier.height(32.dp))
 
