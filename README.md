@@ -5,9 +5,9 @@ Android Repository for Auralearn Mobile App
 Edversity
 
 ## Anggota
-Muhammad Farrel Danendra Rachim - Hustler
-Akmal Mahardika Nurwahyu Pratama - Hacker
-Ghazi Akmal Fauzan - Hipster
+- Muhammad Farrel Danendra Rachim - Hustler
+- Akmal Mahardika Nurwahyu Pratama - Hacker
+- Ghazi Akmal Fauzan - Hipster
 
 Auralearn adalah aplikasi Android berbasis Artificial Intelligence (AI) yang memungkinkan siswa tunanetra mengakses materi pembelajaran dalam format TTS (Text-to-Speech). Aplikasi ini memiliki fitur seperti:
 - Voice assistant (Speech-to-Text): Pengguna menanyakan hal-hal materi yang ingin ditanyakan terkait materi aplikasi melalui voice assistant
